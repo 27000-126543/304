@@ -1,17 +1,19 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { Camera, Scan, LogIn, Shield } from 'lucide-react'
 import { useStore } from '@/store/useStore'
 
 const roleLabels: Record<string, string> = {
   driver: '驾驶员',
   dispatcher: '调度员',
+  station_manager: '站长',
   bureau_leader: '局领导',
 }
 
 const roleColors: Record<string, string> = {
   driver: 'text-cyber-accent',
   dispatcher: 'text-blue-400',
+  station_manager: 'text-orange-400',
   bureau_leader: 'text-purple-400',
 }
 
@@ -19,12 +21,18 @@ export default function Login() {
   const navigate = useNavigate()
   const users = useStore(s => s.users)
   const login = useStore(s => s.login)
+  const currentUser = useStore(s => s.currentUser)
   const [selectedUser, setSelectedUser] = useState<string | null>(null)
   const [loginLog, setLoginLog] = useState<string[]>([
     '[系统] 人脸识别模块已就绪',
     '[系统] 等待用户认证...',
   ])
   const [scanning, setScanning] = useState(false)
+
+  if (currentUser) {
+    const path = currentUser.role === 'driver' ? '/dashboard' : currentUser.role === 'dispatcher' || currentUser.role === 'station_manager' ? '/dispatch' : '/report'
+    return <Navigate to={path} replace />
+  }
 
   const handleLogin = (userId: string) => {
     const user = users.find(u => u.id === userId)
@@ -46,7 +54,9 @@ export default function Login() {
         ...prev,
       ])
       login(userId)
-      navigate('/dashboard')
+      const role = users.find(u => u.id === userId)?.role ?? 'driver'
+      const path = role === 'driver' ? '/dashboard' : role === 'dispatcher' || role === 'station_manager' ? '/dispatch' : '/report'
+      navigate(path)
     }, 1500)
   }
 

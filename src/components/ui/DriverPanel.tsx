@@ -1,4 +1,4 @@
-import { Truck, MapPin, Target, Clock, Trash2, ArrowRight } from 'lucide-react'
+import { Truck, MapPin, Target, Clock, Trash2, ArrowRight, Route } from 'lucide-react'
 import { useStore } from '@/store/useStore'
 import { cn } from '@/lib/utils'
 
@@ -14,6 +14,31 @@ const taskStatusConfig: Record<string, { badge: string; label: string }> = {
   assigned: { badge: 'badge-collecting', label: '已分配' },
   in_progress: { badge: 'badge-warning', label: '进行中' },
   completed: { badge: 'badge-normal', label: '已完成' },
+}
+
+function RoutePreview({ path, label }: { path: [number, number, number][]; label: string }) {
+  if (path.length < 2) return null
+
+  return (
+    <div className="mt-1 p-1.5 rounded bg-[#0a1628]/80 border border-[#1a2a4a]/40">
+      <div className="text-[8px] text-[#6b7c93] mb-1 flex items-center gap-0.5">
+        <Route className="w-2 h-2" />
+        {label}
+      </div>
+      <div className="flex items-center gap-0.5 overflow-x-auto">
+        {path.map((pt, i) => (
+          <div key={i} className="flex items-center gap-0.5 flex-shrink-0">
+            <span className="text-[8px] font-mono text-[#e0e8f0]">
+              ({pt[0].toFixed(0)},{pt[2].toFixed(0)})
+            </span>
+            {i < path.length - 1 && (
+              <ArrowRight className="w-2 h-2 text-[#1a2a4a] flex-shrink-0" />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default function DriverPanel() {
@@ -133,6 +158,7 @@ export default function DriverPanel() {
                       </span>
                     </div>
                   )}
+                  <RoutePreview path={task.path} label="收运路线" />
                   <div className="text-[9px] text-[#6b7c93] flex items-center gap-0.5">
                     <Clock className="w-2 h-2" />
                     {task.createdAt}
@@ -178,6 +204,7 @@ export default function DriverPanel() {
                       </span>
                     </div>
                   )}
+                  <RoutePreview path={task.path} label={`转运路线 → ${task.destination ?? '焚烧厂'}`} />
                 </div>
               )
             })}

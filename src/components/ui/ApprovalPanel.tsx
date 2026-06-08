@@ -69,7 +69,7 @@ function getNextLevel(proposal: ScheduleProposal): 'dispatcher' | 'station_manag
 
 const roleApprovalMap: Record<string, string[]> = {
   dispatcher: ['dispatcher'],
-  bureau_leader: ['bureau'],
+  bureau_leader: ['station_manager', 'bureau'],
 }
 
 export default function ApprovalPanel() {

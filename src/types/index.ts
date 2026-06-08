@@ -39,6 +39,13 @@ export interface Personnel {
   isAlarm: boolean
 }
 
+export interface ReassignRecord {
+  fromTruckId: string | null
+  toTruckId: string
+  timestamp: string
+  operator: string
+}
+
 export interface CollectionTask {
   id: string
   taskType: 'collection' | 'transfer'
@@ -50,6 +57,7 @@ export interface CollectionTask {
   completedAt: string | null
   destination?: string
   targetBoxId?: string
+  reassignHistory: ReassignRecord[]
 }
 
 export interface MaintenanceOrder {
@@ -85,7 +93,7 @@ export interface ScheduleProposal {
 export interface User {
   id: string
   name: string
-  role: 'driver' | 'dispatcher' | 'bureau_leader'
+  role: 'driver' | 'dispatcher' | 'station_manager' | 'bureau_leader'
   avatar: string
   lastLogin: string
   assignedTruckId?: string
@@ -100,4 +108,4 @@ export interface DailyReport {
   complaints: number
 }
 
-export type UserRole = 'driver' | 'dispatcher' | 'bureau_leader'
+export type UserRole = 'driver' | 'dispatcher' | 'station_manager' | 'bureau_leader'

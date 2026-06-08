@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
-import { Activity, Clock, User, Bell, Play, Pause } from 'lucide-react'
+import { Activity, Clock, User, Bell, Play, Pause, LogOut } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useStore } from '@/store/useStore'
 import { cn } from '@/lib/utils'
 
 export default function TopBar() {
   const [time, setTime] = useState(new Date())
-  const { simulationRunning, toggleSimulation, currentUser, alerts } = useStore()
+  const { simulationRunning, toggleSimulation, currentUser, alerts, logout } = useStore()
+  const navigate = useNavigate()
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000)
@@ -63,6 +65,15 @@ export default function TopBar() {
             </span>
           )}
         </div>
+
+        {currentUser && (
+          <button
+            onClick={() => { logout(); navigate('/') }}
+            className="flex items-center gap-1 text-xs text-[#6b7c93] hover:text-[#ff3d57] transition-colors"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
     </div>
   )

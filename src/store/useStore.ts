@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import type { GarbageBin, GarbageTruck, CompressionBox, Personnel, CollectionTask, MaintenanceOrder, ScheduleProposal, User, UserRole, DailyReport } from '@/types'
+import { persist } from 'zustand/middleware'
+import type { GarbageBin, GarbageTruck, CompressionBox, Personnel, CollectionTask, MaintenanceOrder, ScheduleProposal, User, UserRole, DailyReport, ReassignRecord } from '@/types'
 import { initialBins, initialTrucks, initialCompressionBoxes, initialPersonnel, initialUsers, generateDailyReports, predictionData } from '@/data/mockData'
 
 const INCINERATOR_POS: [number, number, number] = [35, 0, 0]
@@ -77,7 +78,9 @@ const hasActiveTaskFor = (tasks: CollectionTask[], targetId: string, taskType: '
   )
 }
 
-export const useStore = create<AppState>((set, get) => ({
+export const useStore = create<AppState>()(
+  persist(
+    (set, get) => ({
   currentUser: null,
   users: initialUsers,
   bins: initialBins,
@@ -155,6 +158,7 @@ export const useStore = create<AppState>((set, get) => ({
       status: truckId ? 'assigned' : 'pending',
       createdAt: new Date().toLocaleTimeString(),
       completedAt: null,
+      reassignHistory: [],
     }
     const trucks = truckId ? state.trucks.map(t => {
       if (t.id !== truckId) return t
@@ -186,6 +190,7 @@ export const useStore = create<AppState>((set, get) => ({
       createdAt: new Date().toLocaleTimeString(),
       completedAt: null,
       destination: '城东焚烧厂',
+      reassignHistory: [],
     }
     const trucks = truckId ? state.trucks.map(t => {
       if (t.id !== truckId) return t
@@ -244,33 +249,44 @@ export const useStore = create<AppState>((set, get) => ({
       : state.bins.find(b => b.id === task.targetBinId)?.position
     if (!targetPos) return state
 
-    const path: [number, number, number][] = [
-      newTruck.position,
+    const newRoute: [number, number, number][] = [
+      [newTruck.position[0], 0, newTruck.position[2]],
       targetPos,
       ...(task.taskType === 'transfer' ? [INCINERATOR_POS] : []),
     ]
 
-    let trucks = state.trucks.map(t => {
+    const path: [number, number, number][] = [...newRoute]
+
+    const trucks = state.trucks.map(t => {
       if (t.id === task.assignedTruckId && task.assignedTruckId !== newTruckId) {
-        return { ...t, status: 'idle' as const, targetBinId: null }
+        return { ...t, status: 'idle' as const, targetBinId: null, route: [[t.position[0], 0, t.position[2]]] as [number, number, number][], routeProgress: 0 }
+      }
+      if (t.id === newTruckId) {
+        return {
+          ...t,
+          status: task.taskType === 'transfer' ? 'transporting' as const : 'collecting' as const,
+          targetBinId: task.targetBinId,
+          route: newRoute,
+          routeProgress: 0,
+        }
       }
       return t
     })
 
-    trucks = trucks.map(t => {
-      if (t.id !== newTruckId) return t
-      return {
-        ...t,
-        status: task.taskType === 'transfer' ? 'transporting' as const : 'collecting' as const,
-        targetBinId: task.targetBinId,
-        route: [...t.route, targetPos, ...(task.taskType === 'transfer' ? [INCINERATOR_POS] : [])],
-        routeProgress: 0,
-      }
-    })
-
     return {
       tasks: state.tasks.map(t => t.id === taskId
-        ? { ...t, assignedTruckId: newTruckId, status: 'assigned' as const, path }
+        ? {
+            ...t,
+            assignedTruckId: newTruckId,
+            status: 'assigned' as const,
+            path,
+            reassignHistory: [...t.reassignHistory, {
+              fromTruckId: task.assignedTruckId,
+              toTruckId: newTruckId,
+              timestamp: new Date().toLocaleTimeString(),
+              operator: get().currentUser?.name ?? '系统',
+            }],
+          }
         : t
       ),
       trucks,
@@ -380,6 +396,7 @@ export const useStore = create<AppState>((set, get) => ({
           status: truckId ? 'assigned' : 'pending',
           createdAt: new Date().toLocaleTimeString(),
           completedAt: null,
+          reassignHistory: [],
         }
         autoTasks.push(task)
         autoAlerts.push({
@@ -422,6 +439,7 @@ export const useStore = create<AppState>((set, get) => ({
           createdAt: new Date().toLocaleTimeString(),
           completedAt: null,
           destination: '城东焚烧厂',
+          reassignHistory: [],
         }
         autoTasks.push(task)
         autoAlerts.push({
@@ -455,6 +473,50 @@ export const useStore = create<AppState>((set, get) => ({
       return { ...t, position: newPos, routeProgress: newProgress, currentLoad: Math.round(newLoad) }
     })
 
+    const allTasks = [...autoTasks, ...state.tasks]
+
+    const taskProgressUpdates = new Map<string, 'in_progress' | 'completed'>()
+    for (const truck of newTrucks) {
+      if (truck.status !== 'collecting' && truck.status !== 'transporting') continue
+      const task = allTasks.find(t =>
+        t.assignedTruckId === truck.id && t.targetBinId === truck.targetBinId && t.status !== 'completed'
+      )
+      if (!task) continue
+      if (truck.routeProgress >= 0.3 && task.status === 'assigned') {
+        taskProgressUpdates.set(task.id, truck.routeProgress >= 0.95 ? 'completed' : 'in_progress')
+      } else if (truck.routeProgress >= 0.95 && task.status === 'in_progress') {
+        taskProgressUpdates.set(task.id, 'completed')
+      }
+    }
+
+    const updatedTasks = allTasks.map(t => {
+      const update = taskProgressUpdates.get(t.id)
+      if (!update) return t
+      if (update === 'completed') {
+        return { ...t, status: 'completed' as const, completedAt: new Date().toLocaleTimeString() }
+      }
+      return { ...t, status: 'in_progress' as const }
+    })
+
+    let finalBins = newBins
+    let finalTrucks = newTrucks
+    let finalCompressionBoxes = newCompressionBoxes
+
+    for (const [taskId, update] of taskProgressUpdates) {
+      if (update !== 'completed') continue
+      const task = updatedTasks.find(t => t.id === taskId)
+      if (!task) continue
+      if (task.taskType === 'collection') {
+        finalBins = finalBins.map(b => b.id === task.targetBinId ? { ...b, fillLevel: 0, status: 'normal' as const, countdown: 300 } : b)
+      }
+      if (task.taskType === 'transfer') {
+        finalCompressionBoxes = finalCompressionBoxes.map(b => b.id === task.targetBinId ? { ...b, liquidLevel: 20, status: 'normal' as const } : b)
+      }
+      if (task.assignedTruckId) {
+        finalTrucks = finalTrucks.map(t => t.id === task.assignedTruckId ? { ...t, status: 'idle' as const, targetBinId: null } : t)
+      }
+    }
+
     const newPersonnel = state.personnel.map(p => {
       const dx = (Math.random() - 0.5) * 0.3
       const dz = (Math.random() - 0.5) * 0.3
@@ -466,12 +528,35 @@ export const useStore = create<AppState>((set, get) => ({
     const allNewAlerts = [...autoAlerts, ...state.alerts].slice(0, 50)
 
     return {
-      bins: newBins,
-      trucks: newTrucks,
-      compressionBoxes: newCompressionBoxes,
+      bins: finalBins,
+      trucks: finalTrucks,
+      compressionBoxes: finalCompressionBoxes,
       personnel: newPersonnel,
-      tasks: [...autoTasks, ...state.tasks],
+      tasks: updatedTasks,
       alerts: allNewAlerts,
     }
   }),
-}))
+}),
+{
+  name: 'smart-city-store',
+  storage: {
+    getItem: (name) => {
+      const str = sessionStorage.getItem(name)
+      return str ? JSON.parse(str) : null
+    },
+    setItem: (name, value) => {
+      sessionStorage.setItem(name, JSON.stringify(value))
+    },
+    removeItem: (name) => {
+      sessionStorage.removeItem(name)
+    },
+  },
+  partialize: (state) => ({
+    currentUser: state.currentUser,
+    scheduleProposals: state.scheduleProposals,
+    tasks: state.tasks,
+    maintenanceOrders: state.maintenanceOrders,
+  }),
+}
+  )
+)

@@ -62,7 +62,7 @@ export const initialUsers: User[] = [
   { id: 'U-002', name: '王芳', role: 'dispatcher', avatar: '', lastLogin: '2026-06-08 07:45:00' },
   { id: 'U-003', name: '陈局长', role: 'bureau_leader', avatar: '', lastLogin: '2026-06-07 17:20:00' },
   { id: 'U-004', name: '李明', role: 'driver', avatar: '', lastLogin: '2026-06-08 06:15:00', assignedTruckId: 'T-002' },
-  { id: 'U-005', name: '赵站长', role: 'dispatcher', avatar: '', lastLogin: '2026-06-08 08:00:00' },
+  { id: 'U-005', name: '赵站长', role: 'station_manager', avatar: '', lastLogin: '2026-06-08 08:00:00' },
 ]
 
 export const generateDailyReports = (): DailyReport[] => {

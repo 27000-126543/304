@@ -9,12 +9,14 @@ import Report from '@/pages/Report'
 const roleRouteAccess: Record<string, string[]> = {
   driver: ['/dashboard'],
   dispatcher: ['/dashboard', '/dispatch'],
+  station_manager: ['/dashboard', '/dispatch'],
   bureau_leader: ['/dashboard', '/dispatch', '/report'],
 }
 
 function getDefaultPath(role: string): string {
   if (role === 'driver') return '/dashboard'
   if (role === 'dispatcher') return '/dispatch'
+  if (role === 'station_manager') return '/dispatch'
   return '/report'
 }
 
@@ -35,8 +37,8 @@ function BottomNav() {
   if (!currentUser) return null
 
   const allNavItems = [
-    { path: '/dashboard', label: '城市总览', icon: LayoutDashboard, roles: ['driver', 'dispatcher', 'bureau_leader'] },
-    { path: '/dispatch', label: '调度中心', icon: Radio, roles: ['dispatcher', 'bureau_leader'] },
+    { path: '/dashboard', label: '城市总览', icon: LayoutDashboard, roles: ['driver', 'dispatcher', 'station_manager', 'bureau_leader'] },
+    { path: '/dispatch', label: '调度中心', icon: Radio, roles: ['dispatcher', 'station_manager', 'bureau_leader'] },
     { path: '/report', label: '数据报表', icon: FileBarChart, roles: ['bureau_leader'] },
   ]
 
@@ -89,8 +91,8 @@ export default function App() {
     <Router>
       <Routes>
         <Route path="/" element={<Login />} />
-        <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['driver', 'dispatcher', 'bureau_leader']}><Dashboard /></ProtectedRoute>} />
-        <Route path="/dispatch" element={<ProtectedRoute allowedRoles={['dispatcher', 'bureau_leader']}><Dispatch /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['driver', 'dispatcher', 'station_manager', 'bureau_leader']}><Dashboard /></ProtectedRoute>} />
+        <Route path="/dispatch" element={<ProtectedRoute allowedRoles={['dispatcher', 'station_manager', 'bureau_leader']}><Dispatch /></ProtectedRoute>} />
         <Route path="/report" element={<ProtectedRoute allowedRoles={['bureau_leader']}><Report /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to={defaultPath} replace />} />
       </Routes>
