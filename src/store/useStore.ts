@@ -551,12 +551,12 @@ export const useStore = create<AppState>()(
       sessionStorage.removeItem(name)
     },
   },
-  partialize: (state) => ({
+  partialize: (state: AppState) => ({
     currentUser: state.currentUser,
     scheduleProposals: state.scheduleProposals,
     tasks: state.tasks,
     maintenanceOrders: state.maintenanceOrders,
-  }),
+  }) as unknown as Partial<AppState>,
 }
   )
 )

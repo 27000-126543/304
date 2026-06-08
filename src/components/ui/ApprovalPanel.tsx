@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, X, Plus, ChevronRight, FileText } from 'lucide-react'
+import { Check, X, Plus, ChevronRight, FileText, MessageSquare } from 'lucide-react'
 import { useStore } from '@/store/useStore'
 import { cn } from '@/lib/utils'
 import type { ScheduleProposal } from '@/types'
@@ -24,18 +24,12 @@ const proposalStatusLabel: Record<string, string> = {
 }
 
 function ApprovalSteps({ proposal }: { proposal: ScheduleProposal }) {
-  const currentStepIdx = stepKeys.findIndex(key => {
-    const approval = proposal.approvals.find(a => a.level === key)
-    return !approval || approval.result === 'pending'
-  })
-
   return (
     <div className="flex items-center gap-0.5 mt-1">
       {stepKeys.map((key, i) => {
         const approval = proposal.approvals.find(a => a.level === key)
         const isApproved = approval?.result === 'approved'
         const isRejected = approval?.result === 'rejected'
-        const isCurrent = i === currentStepIdx
 
         return (
           <div key={key} className="flex items-center gap-0.5">
@@ -44,8 +38,7 @@ function ApprovalSteps({ proposal }: { proposal: ScheduleProposal }) {
                 'w-4 h-4 rounded-full flex items-center justify-center text-[8px] border',
                 isApproved && 'bg-[#00e5a0]/20 border-[#00e5a0] text-[#00e5a0]',
                 isRejected && 'bg-[#ff3d57]/20 border-[#ff3d57] text-[#ff3d57]',
-                isCurrent && !isApproved && !isRejected && 'bg-[#ffc107]/20 border-[#ffc107] text-[#ffc107]',
-                !isCurrent && !isApproved && !isRejected && 'bg-[#1a2a4a]/50 border-[#1a2a4a] text-[#6b7c93]'
+                !isApproved && !isRejected && 'bg-[#1a2a4a]/50 border-[#1a2a4a] text-[#6b7c93]'
               )}
             >
               {isApproved ? <Check className="w-2.5 h-2.5" /> : isRejected ? <X className="w-2.5 h-2.5" /> : <span>{i + 1}</span>}
@@ -61,6 +54,7 @@ function ApprovalSteps({ proposal }: { proposal: ScheduleProposal }) {
 }
 
 function getNextLevel(proposal: ScheduleProposal): 'dispatcher' | 'station_manager' | 'bureau' | null {
+  if (proposal.status === 'rejected') return null
   if (proposal.status === 'draft') return 'dispatcher'
   if (proposal.status === 'dispatcher_approved') return 'station_manager'
   if (proposal.status === 'station_approved') return 'bureau'
@@ -69,7 +63,8 @@ function getNextLevel(proposal: ScheduleProposal): 'dispatcher' | 'station_manag
 
 const roleApprovalMap: Record<string, string[]> = {
   dispatcher: ['dispatcher'],
-  bureau_leader: ['station_manager', 'bureau'],
+  station_manager: ['station_manager'],
+  bureau_leader: ['bureau'],
 }
 
 export default function ApprovalPanel() {
@@ -78,6 +73,7 @@ export default function ApprovalPanel() {
   const [formTitle, setFormTitle] = useState('')
   const [formVehicleCount, setFormVehicleCount] = useState(3)
   const [formRouteNotes, setFormRouteNotes] = useState('')
+  const [commentInput, setCommentInput] = useState<Record<string, string>>({})
 
   const canSubmit = currentUser?.role === 'dispatcher'
   const userApprovableLevels: string[] = currentUser ? (roleApprovalMap[currentUser.role] ?? []) : []
@@ -97,11 +93,15 @@ export default function ApprovalPanel() {
   }
 
   function handleApprove(proposalId: string, level: 'dispatcher' | 'station_manager' | 'bureau') {
-    approveSchedule(proposalId, level, currentUser?.name ?? '系统', 'approved', '同意')
+    const comment = commentInput[proposalId] || '同意'
+    approveSchedule(proposalId, level, currentUser?.name ?? '系统', 'approved', comment)
+    setCommentInput(prev => { const next = { ...prev }; delete next[proposalId]; return next })
   }
 
   function handleReject(proposalId: string, level: 'dispatcher' | 'station_manager' | 'bureau') {
-    approveSchedule(proposalId, level, currentUser?.name ?? '系统', 'rejected', '驳回')
+    const comment = commentInput[proposalId] || '驳回'
+    approveSchedule(proposalId, level, currentUser?.name ?? '系统', 'rejected', comment)
+    setCommentInput(prev => { const next = { ...prev }; delete next[proposalId]; return next })
   }
 
   return (
@@ -183,25 +183,55 @@ export default function ApprovalPanel() {
                 </span>
               </div>
 
-              <div className="flex items-center justify-between">
-                <ApprovalSteps proposal={proposal} />
-                {canApproveThisLevel && (
+              <ApprovalSteps proposal={proposal} />
+
+              {canApproveThisLevel && (
+                <div className="mt-1.5 space-y-1">
+                  <div className="flex items-center gap-1">
+                    <MessageSquare className="w-2.5 h-2.5 text-[#6b7c93]" />
+                    <input
+                      type="text"
+                      placeholder="审批意见（可选）"
+                      value={commentInput[proposal.id] || ''}
+                      onChange={e => setCommentInput(prev => ({ ...prev, [proposal.id]: e.target.value }))}
+                      className="flex-1 px-1.5 py-0.5 rounded text-[9px] bg-[#0f1f3d] border border-[#1a2a4a] text-[#e0e8f0] placeholder-[#6b7c93] outline-none focus:border-[#00e5a0]/40"
+                    />
+                  </div>
                   <div className="flex gap-1">
                     <button
                       onClick={() => handleApprove(proposal.id, nextLevel)}
-                      className="px-1.5 py-0.5 rounded text-[9px] bg-[#00e5a0]/15 text-[#00e5a0] border border-[#00e5a0]/20 hover:bg-[#00e5a0]/25 transition-colors"
+                      className="flex-1 flex items-center justify-center gap-0.5 py-0.5 rounded text-[9px] bg-[#00e5a0]/15 text-[#00e5a0] border border-[#00e5a0]/20 hover:bg-[#00e5a0]/25 transition-colors"
                     >
                       <Check className="w-2.5 h-2.5" />
+                      通过
                     </button>
                     <button
                       onClick={() => handleReject(proposal.id, nextLevel)}
-                      className="px-1.5 py-0.5 rounded text-[9px] bg-[#ff3d57]/15 text-[#ff3d57] border border-[#ff3d57]/20 hover:bg-[#ff3d57]/25 transition-colors"
+                      className="flex-1 flex items-center justify-center gap-0.5 py-0.5 rounded text-[9px] bg-[#ff3d57]/15 text-[#ff3d57] border border-[#ff3d57]/20 hover:bg-[#ff3d57]/25 transition-colors"
                     >
                       <X className="w-2.5 h-2.5" />
+                      驳回
                     </button>
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+
+              {proposal.approvals.length > 0 && (
+                <div className="mt-1 space-y-0.5">
+                  {proposal.approvals.map(a => (
+                    <div key={a.id} className="flex items-center gap-1 text-[8px]">
+                      <span className={cn(
+                        a.result === 'approved' ? 'text-[#00e5a0]' : 'text-[#ff3d57]'
+                      )}>
+                        {a.level === 'dispatcher' ? '调度' : a.level === 'station_manager' ? '站长' : '局'}:
+                      </span>
+                      <span className="text-[#e0e8f0]">{a.approver}</span>
+                      <span className="text-[#6b7c93]">{a.timestamp}</span>
+                      {a.comment && <span className="text-[#6b7c93]">「{a.comment}」</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div className="text-[9px] text-[#6b7c93] mt-0.5">
                 车辆: <span className="font-mono text-[#e0e8f0]">{proposal.vehicleCount}</span>

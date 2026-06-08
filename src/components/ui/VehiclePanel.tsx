@@ -85,7 +85,6 @@ function RouteDetail({ truck, task }: { truck: GarbageTruck; task: CollectionTas
     </div>
   )
 }
-}
 
 export default function VehiclePanel() {
   const { trucks, tasks, setSelectedTruckId } = useStore()

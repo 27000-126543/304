@@ -1,4 +1,4 @@
-import { Truck, MapPin, Target, Clock, Trash2, ArrowRight, Route } from 'lucide-react'
+import { Truck, MapPin, Target, Clock, Trash2, ArrowRight, Route, CheckCircle } from 'lucide-react'
 import { useStore } from '@/store/useStore'
 import { cn } from '@/lib/utils'
 
@@ -42,7 +42,7 @@ function RoutePreview({ path, label }: { path: [number, number, number][]; label
 }
 
 export default function DriverPanel() {
-  const { currentUser, trucks, bins, compressionBoxes, tasks } = useStore()
+  const { currentUser, trucks, bins, compressionBoxes, tasks, completeTask } = useStore()
 
   if (!currentUser || currentUser.role !== 'driver') return null
 
@@ -159,6 +159,15 @@ export default function DriverPanel() {
                     </div>
                   )}
                   <RoutePreview path={task.path} label="收运路线" />
+                  {task.status === 'in_progress' && (
+                    <button
+                      onClick={() => completeTask(task.id)}
+                      className="w-full flex items-center justify-center gap-1 py-1 rounded text-[10px] bg-[#00e5a0]/15 text-[#00e5a0] border border-[#00e5a0]/20 hover:bg-[#00e5a0]/25 transition-colors"
+                    >
+                      <CheckCircle className="w-3 h-3" />
+                      确认完成收运
+                    </button>
+                  )}
                   <div className="text-[9px] text-[#6b7c93] flex items-center gap-0.5">
                     <Clock className="w-2 h-2" />
                     {task.createdAt}
@@ -205,6 +214,15 @@ export default function DriverPanel() {
                     </div>
                   )}
                   <RoutePreview path={task.path} label={`转运路线 → ${task.destination ?? '焚烧厂'}`} />
+                  {task.status === 'in_progress' && (
+                    <button
+                      onClick={() => completeTask(task.id)}
+                      className="w-full flex items-center justify-center gap-1 py-1 rounded text-[10px] bg-[#00e5a0]/15 text-[#00e5a0] border border-[#00e5a0]/20 hover:bg-[#00e5a0]/25 transition-colors"
+                    >
+                      <CheckCircle className="w-3 h-3" />
+                      确认完成转运
+                    </button>
+                  )}
                 </div>
               )
             })}
