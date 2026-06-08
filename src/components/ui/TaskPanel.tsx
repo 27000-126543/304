@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, ChevronDown, Clock, Truck, ArrowRight, Wrench } from 'lucide-react'
+import { Plus, ChevronDown, Clock, Truck, ArrowRight, Wrench, RefreshCw } from 'lucide-react'
 import { useStore } from '@/store/useStore'
 import { cn } from '@/lib/utils'
 
@@ -10,10 +10,73 @@ const statusConfig: Record<string, { badge: string; label: string }> = {
   completed: { badge: 'badge-normal', label: '已完成' },
 }
 
+function AssignTruckDropdown({ taskId, currentTruckId, taskType }: {
+  taskId: string
+  currentTruckId: string | null
+  taskType: 'collection' | 'transfer'
+}) {
+  const { trucks, assignTask, reassignTask } = useStore()
+  const [open, setOpen] = useState(false)
+
+  const availableTrucks = trucks.filter(t =>
+    t.status === 'idle' || (t.status === 'collecting' && t.currentLoad < t.maxLoad * 0.8)
+  )
+
+  const label = currentTruckId ? '改派' : '派单'
+  const action = currentTruckId ? 'reassign' : 'assign'
+
+  return (
+    <div className="relative inline-block">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(!open) }}
+        className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] bg-[#42a5f5]/15 text-[#42a5f5] border border-[#42a5f5]/20 hover:bg-[#42a5f5]/25 transition-colors"
+      >
+        {currentTruckId ? <RefreshCw className="w-2.5 h-2.5" /> : <Truck className="w-2.5 h-2.5" />}
+        {label}
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-[#0f1f3d] border border-[#1a2a4a] rounded shadow-lg z-20 min-w-[120px] max-h-28 overflow-y-auto">
+          {availableTrucks.length === 0 && (
+            <div className="px-2 py-1.5 text-[9px] text-[#6b7c93]">无可用车辆</div>
+          )}
+          {availableTrucks.map(truck => (
+            <button
+              key={truck.id}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (action === 'reassign') {
+                  reassignTask(taskId, truck.id)
+                } else {
+                  assignTask(taskId, truck.id)
+                }
+                setOpen(false)
+              }}
+              className={cn(
+                'w-full text-left px-2 py-1.5 text-[10px] hover:bg-[#1a2a4a]/60 transition-colors flex items-center justify-between',
+                truck.id === currentTruckId && 'text-[#00e5a0]'
+              )}
+            >
+              <span className="text-[#e0e8f0]">{truck.id}</span>
+              <span className={cn(
+                'text-[8px]',
+                truck.status === 'idle' ? 'text-[#00e5a0]' : 'text-[#ffc107]'
+              )}>
+                {truck.status === 'idle' ? '空闲' : '可调度'}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function TaskPanel() {
-  const { tasks, bins, compressionBoxes, maintenanceOrders, createTask, createTransferTask } = useStore()
+  const { tasks, bins, compressionBoxes, maintenanceOrders, createTask, createTransferTask, currentUser } = useStore()
   const [showDropdown, setShowDropdown] = useState(false)
   const [activeTab, setActiveTab] = useState<'collection' | 'transfer' | 'maintenance'>('collection')
+
+  const isDispatcher = currentUser?.role === 'dispatcher'
 
   const binsNeedingTask = bins.filter(b => b.fillLevel >= 80 && b.status !== 'fault')
   const boxesNeedingTransfer = compressionBoxes.filter(b => b.liquidLevel > 85 && b.status !== 'fault')
@@ -55,36 +118,38 @@ export default function TaskPanel() {
 
       {activeTab === 'collection' && (
         <>
-          <div className="relative">
-            <button
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="w-full flex items-center justify-center gap-1 px-2 py-1 rounded text-[10px] bg-[#00e5a0]/15 text-[#00e5a0] border border-[#00e5a0]/30 hover:bg-[#00e5a0]/25 transition-colors"
-            >
-              <Plus className="w-3 h-3" />
-              新建收运任务
-              <ChevronDown className="w-3 h-3" />
-            </button>
-            {showDropdown && (
-              <div className="absolute left-0 right-0 top-full mt-1 bg-[#0f1f3d] border border-[#1a2a4a] rounded shadow-lg z-10 max-h-32 overflow-y-auto">
-                {binsNeedingTask.length === 0 && (
-                  <div className="px-2 py-1.5 text-[10px] text-[#6b7c93]">暂无需要收运的垃圾桶</div>
-                )}
-                {binsNeedingTask.map(bin => (
-                  <button
-                    key={bin.id}
-                    onClick={() => {
-                      createTask(bin.id)
-                      setShowDropdown(false)
-                    }}
-                    className="w-full text-left px-2 py-1.5 text-[10px] hover:bg-[#1a2a4a]/60 transition-colors flex items-center justify-between"
-                  >
-                    <span className="text-[#e0e8f0]">{bin.id} - {bin.location}</span>
-                    <span className="font-mono text-[#ffc107]">{bin.fillLevel}%</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {isDispatcher && (
+            <div className="relative">
+              <button
+                onClick={() => setShowDropdown(!showDropdown)}
+                className="w-full flex items-center justify-center gap-1 px-2 py-1 rounded text-[10px] bg-[#00e5a0]/15 text-[#00e5a0] border border-[#00e5a0]/30 hover:bg-[#00e5a0]/25 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                新建收运任务
+                <ChevronDown className="w-3 h-3" />
+              </button>
+              {showDropdown && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-[#0f1f3d] border border-[#1a2a4a] rounded shadow-lg z-10 max-h-32 overflow-y-auto">
+                  {binsNeedingTask.length === 0 && (
+                    <div className="px-2 py-1.5 text-[10px] text-[#6b7c93]">暂无需要收运的垃圾桶</div>
+                  )}
+                  {binsNeedingTask.map(bin => (
+                    <button
+                      key={bin.id}
+                      onClick={() => {
+                        createTask(bin.id)
+                        setShowDropdown(false)
+                      }}
+                      className="w-full text-left px-2 py-1.5 text-[10px] hover:bg-[#1a2a4a]/60 transition-colors flex items-center justify-between"
+                    >
+                      <span className="text-[#e0e8f0]">{bin.id} - {bin.location}</span>
+                      <span className="font-mono text-[#ffc107]">{bin.fillLevel}%</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <div className="max-h-48 overflow-y-auto">
             {collectionTasks.length === 0 && (
               <div className="py-3 text-[10px] text-[#6b7c93] text-center">暂无收运任务</div>
@@ -93,9 +158,18 @@ export default function TaskPanel() {
               <div key={task.id} className="px-2 py-1.5 border-b border-[#1a2a4a]/50 hover:bg-[#0f1f3d]/60 transition-colors">
                 <div className="flex items-center justify-between mb-0.5">
                   <span className="text-[10px] font-mono text-[#6b7c93]">{task.id.slice(0, 16)}</span>
-                  <span className={cn('status-badge', statusConfig[task.status]?.badge ?? 'badge-normal')}>
-                    {statusConfig[task.status]?.label ?? task.status}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className={cn('status-badge', statusConfig[task.status]?.badge ?? 'badge-normal')}>
+                      {statusConfig[task.status]?.label ?? task.status}
+                    </span>
+                    {isDispatcher && (task.status === 'pending' || task.status === 'assigned') && (
+                      <AssignTruckDropdown
+                        taskId={task.id}
+                        currentTruckId={task.assignedTruckId}
+                        taskType="collection"
+                      />
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 text-[10px]">
                   <span className="text-[#6b7c93]">目标: <span className="text-[#e0e8f0]">{task.targetBinId}</span></span>
@@ -118,36 +192,38 @@ export default function TaskPanel() {
 
       {activeTab === 'transfer' && (
         <>
-          <div className="relative">
-            <button
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="w-full flex items-center justify-center gap-1 px-2 py-1 rounded text-[10px] bg-[#42a5f5]/15 text-[#42a5f5] border border-[#42a5f5]/30 hover:bg-[#42a5f5]/25 transition-colors"
-            >
-              <Plus className="w-3 h-3" />
-              新建转运任务
-              <ChevronDown className="w-3 h-3" />
-            </button>
-            {showDropdown && (
-              <div className="absolute left-0 right-0 top-full mt-1 bg-[#0f1f3d] border border-[#1a2a4a] rounded shadow-lg z-10 max-h-32 overflow-y-auto">
-                {boxesNeedingTransfer.length === 0 && (
-                  <div className="px-2 py-1.5 text-[10px] text-[#6b7c93]">暂无需要转运的压缩箱</div>
-                )}
-                {boxesNeedingTransfer.map(box => (
-                  <button
-                    key={box.id}
-                    onClick={() => {
-                      createTransferTask(box.id)
-                      setShowDropdown(false)
-                    }}
-                    className="w-full text-left px-2 py-1.5 text-[10px] hover:bg-[#1a2a4a]/60 transition-colors flex items-center justify-between"
-                  >
-                    <span className="text-[#e0e8f0]">{box.id} - {box.stationName}</span>
-                    <span className="font-mono text-[#ff3d57]">{box.liquidLevel}%</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {isDispatcher && (
+            <div className="relative">
+              <button
+                onClick={() => setShowDropdown(!showDropdown)}
+                className="w-full flex items-center justify-center gap-1 px-2 py-1 rounded text-[10px] bg-[#42a5f5]/15 text-[#42a5f5] border border-[#42a5f5]/30 hover:bg-[#42a5f5]/25 transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                新建转运任务
+                <ChevronDown className="w-3 h-3" />
+              </button>
+              {showDropdown && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-[#0f1f3d] border border-[#1a2a4a] rounded shadow-lg z-10 max-h-32 overflow-y-auto">
+                  {boxesNeedingTransfer.length === 0 && (
+                    <div className="px-2 py-1.5 text-[10px] text-[#6b7c93]">暂无需要转运的压缩箱</div>
+                  )}
+                  {boxesNeedingTransfer.map(box => (
+                    <button
+                      key={box.id}
+                      onClick={() => {
+                        createTransferTask(box.id)
+                        setShowDropdown(false)
+                      }}
+                      className="w-full text-left px-2 py-1.5 text-[10px] hover:bg-[#1a2a4a]/60 transition-colors flex items-center justify-between"
+                    >
+                      <span className="text-[#e0e8f0]">{box.id} - {box.stationName}</span>
+                      <span className="font-mono text-[#ff3d57]">{box.liquidLevel}%</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <div className="max-h-48 overflow-y-auto">
             {transferTasks.length === 0 && (
               <div className="py-3 text-[10px] text-[#6b7c93] text-center">暂无转运任务</div>
@@ -156,9 +232,18 @@ export default function TaskPanel() {
               <div key={task.id} className="px-2 py-1.5 border-b border-[#1a2a4a]/50 hover:bg-[#0f1f3d]/60 transition-colors">
                 <div className="flex items-center justify-between mb-0.5">
                   <span className="text-[10px] font-mono text-[#6b7c93]">{task.id.slice(0, 16)}</span>
-                  <span className={cn('status-badge', statusConfig[task.status]?.badge ?? 'badge-normal')}>
-                    {statusConfig[task.status]?.label ?? task.status}
-                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className={cn('status-badge', statusConfig[task.status]?.badge ?? 'badge-normal')}>
+                      {statusConfig[task.status]?.label ?? task.status}
+                    </span>
+                    {isDispatcher && (task.status === 'pending' || task.status === 'assigned') && (
+                      <AssignTruckDropdown
+                        taskId={task.id}
+                        currentTruckId={task.assignedTruckId}
+                        taskType="transfer"
+                      />
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 text-[10px]">
                   <span className="text-[#6b7c93]">压缩箱: <span className="text-[#e0e8f0]">{task.targetBinId}</span></span>

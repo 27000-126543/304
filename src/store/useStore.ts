@@ -38,6 +38,7 @@ interface AppState {
   createTask: (binId: string) => void
   createTransferTask: (boxId: string) => void
   assignTask: (taskId: string, truckId: string) => void
+  reassignTask: (taskId: string, newTruckId: string) => void
   completeTask: (taskId: string) => void
   createMaintenanceOrder: (deviceId: string, deviceType: 'bin' | 'compression_box' | 'truck', description: string) => void
   addAlert: (message: string, type: 'warning' | 'critical' | 'info') => void
@@ -229,6 +230,51 @@ export const useStore = create<AppState>((set, get) => ({
       newTrucks = state.trucks.map(t => t.id === task.assignedTruckId ? { ...t, status: 'idle' as const, targetBinId: null } : t)
     }
     return { tasks: newTasks, bins: newBins, trucks: newTrucks, compressionBoxes: newCompressionBoxes }
+  }),
+
+  reassignTask: (taskId, newTruckId) => set(state => {
+    const task = state.tasks.find(t => t.id === taskId)
+    if (!task) return state
+
+    const newTruck = state.trucks.find(t => t.id === newTruckId)
+    if (!newTruck) return state
+
+    const targetPos = task.taskType === 'transfer'
+      ? state.compressionBoxes.find(b => b.id === task.targetBinId)?.position
+      : state.bins.find(b => b.id === task.targetBinId)?.position
+    if (!targetPos) return state
+
+    const path: [number, number, number][] = [
+      newTruck.position,
+      targetPos,
+      ...(task.taskType === 'transfer' ? [INCINERATOR_POS] : []),
+    ]
+
+    let trucks = state.trucks.map(t => {
+      if (t.id === task.assignedTruckId && task.assignedTruckId !== newTruckId) {
+        return { ...t, status: 'idle' as const, targetBinId: null }
+      }
+      return t
+    })
+
+    trucks = trucks.map(t => {
+      if (t.id !== newTruckId) return t
+      return {
+        ...t,
+        status: task.taskType === 'transfer' ? 'transporting' as const : 'collecting' as const,
+        targetBinId: task.targetBinId,
+        route: [...t.route, targetPos, ...(task.taskType === 'transfer' ? [INCINERATOR_POS] : [])],
+        routeProgress: 0,
+      }
+    })
+
+    return {
+      tasks: state.tasks.map(t => t.id === taskId
+        ? { ...t, assignedTruckId: newTruckId, status: 'assigned' as const, path }
+        : t
+      ),
+      trucks,
+    }
   }),
 
   createMaintenanceOrder: (deviceId, deviceType, description) => set(state => ({

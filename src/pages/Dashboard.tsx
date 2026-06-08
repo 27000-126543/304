@@ -2,6 +2,7 @@ import { useEffect, useState, Suspense, lazy } from 'react'
 import { useStore } from '@/store/useStore'
 import TopBar from '@/components/ui/TopBar'
 import SidePanel from '@/components/ui/SidePanel'
+import DriverPanel from '@/components/ui/DriverPanel'
 import AlertList from '@/components/ui/AlertList'
 import StatusOverview from '@/components/ui/StatusOverview'
 
@@ -21,7 +22,10 @@ function Loading3D() {
 export default function Dashboard() {
   const tick = useStore(s => s.tick)
   const simulationRunning = useStore(s => s.simulationRunning)
+  const currentUser = useStore(s => s.currentUser)
   const [sidePanelOpen, setSidePanelOpen] = useState(true)
+
+  const isDriver = currentUser?.role === 'driver'
 
   useEffect(() => {
     if (!simulationRunning) return
@@ -30,6 +34,12 @@ export default function Dashboard() {
     }, 500)
     return () => clearInterval(interval)
   }, [tick, simulationRunning])
+
+  const rightPanel = isDriver
+    ? <DriverPanel />
+    : sidePanelOpen ? <SidePanel /> : null
+
+  const rightWidth = isDriver ? 320 : sidePanelOpen ? 320 : 0
 
   return (
     <div className="flex h-screen flex-col bg-cyber-bg overflow-hidden">
@@ -50,24 +60,26 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <button
-          onClick={() => setSidePanelOpen(v => !v)}
-          className="absolute right-0 top-1/2 z-20 -translate-y-1/2 rounded-l-md px-1 py-4 text-cyber-text-dim transition-colors hover:text-cyber-accent"
-          style={{
-            right: sidePanelOpen ? '320px' : '0',
-            background: 'rgba(13,26,48,0.9)',
-            border: '1px solid var(--color-border)',
-            borderRight: 'none',
-          }}
-        >
-          <span className="text-xs">{sidePanelOpen ? '▶' : '◀'}</span>
-        </button>
+        {!isDriver && (
+          <button
+            onClick={() => setSidePanelOpen(v => !v)}
+            className="absolute right-0 top-1/2 z-20 -translate-y-1/2 rounded-l-md px-1 py-4 text-cyber-text-dim transition-colors hover:text-cyber-accent"
+            style={{
+              right: sidePanelOpen ? '320px' : '0',
+              background: 'rgba(13,26,48,0.9)',
+              border: '1px solid var(--color-border)',
+              borderRight: 'none',
+            }}
+          >
+            <span className="text-xs">{sidePanelOpen ? '▶' : '◀'}</span>
+          </button>
+        )}
 
         <div
           className="flex-shrink-0 transition-all duration-300 overflow-hidden"
-          style={{ width: sidePanelOpen ? '320px' : '0' }}
+          style={{ width: rightWidth }}
         >
-          <SidePanel />
+          {rightPanel}
         </div>
       </div>
     </div>

@@ -8,6 +8,8 @@ import { useStore } from '@/store/useStore'
 
 export default function Report() {
   const dailyReports = useStore(s => s.dailyReports)
+  const currentUser = useStore(s => s.currentUser)
+  const canExport = currentUser?.role === 'bureau_leader'
   const [startDate, setStartDate] = useState(dayjs().subtract(7, 'day').format('YYYY-MM-DD'))
   const [endDate, setEndDate] = useState(dayjs().format('YYYY-MM-DD'))
 
@@ -99,13 +101,15 @@ export default function Report() {
                 className="rounded-md border border-cyber-border bg-cyber-secondary px-3 py-1.5 text-sm text-cyber-text focus:border-cyber-accent focus:outline-none"
               />
             </div>
-            <button
-              onClick={handleExport}
-              className="ml-auto flex items-center gap-2 rounded-md bg-cyber-accent/20 px-4 py-1.5 text-sm text-cyber-accent border border-cyber-accent/30 transition-colors hover:bg-cyber-accent/30"
-            >
-              <Download className="h-4 w-4" />
-              导出Excel
-            </button>
+            {canExport && (
+              <button
+                onClick={handleExport}
+                className="ml-auto flex items-center gap-2 rounded-md bg-cyber-accent/20 px-4 py-1.5 text-sm text-cyber-accent border border-cyber-accent/30 transition-colors hover:bg-cyber-accent/30"
+              >
+                <Download className="h-4 w-4" />
+                导出Excel
+              </button>
+            )}
           </div>
         </div>
 
